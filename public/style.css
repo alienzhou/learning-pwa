@@ -55,6 +55,10 @@ header > button {
     letter-spacing: 4px;
 }
 
+main {
+    text-align: center;    
+}
+
 .loading {
     display: none;
     margin: 200px auto;
@@ -125,4 +129,12 @@ header > button {
     content: '';
     display: inline;
     margin-right: var(--contentMargin);
+}
+
+.thanks {
+    display: none;
+    padding: var(--gap);
+    text-decoration: none;
+    font-size: 12px;
+    color: #777;
 }
