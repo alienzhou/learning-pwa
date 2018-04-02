@@ -53,8 +53,9 @@
         }
     }
 
-    document.querySelector('#js-search-btn').addEventListener('click', function () {
-        var query = document.querySelector('#js-search-input').value;
+    function queryBook() {
+        var input = document.querySelector('#js-search-input');
+        var query = input.value;
         var xhr = new XMLHttpRequest();
         var url = '/book?q=' + query + '&fields=id,title,image,author,publisher,price';
         if (query === '') {
@@ -79,11 +80,22 @@
                     tip('无结果');
                 }
                 else {
+                    input.blur();
                     fillList(response.books);
                 }
             }
         };
         xhr.open('GET', url, true);
         xhr.send(null);
+    }
+
+    document.querySelector('#js-search-btn').addEventListener('click', function () {
+        queryBook();
+    });
+
+    window.addEventListener('keypress', function (e) {
+        if (e.keyCode === 13) {
+            queryBook();
+        }
     });
 })();
