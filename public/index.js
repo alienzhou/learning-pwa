@@ -78,6 +78,7 @@
         var query = input.value;
         var xhr = new XMLHttpRequest();
         var url = '/book?q=' + query + '&fields=id,title,image,author,publisher,price';
+        var cacheData;
         if (query === '') {
             tip('请输入关键词');
             return;
@@ -85,30 +86,24 @@
         document.querySelector('#js-list').innerHTML = '';
         document.querySelector('#js-thanks').style = 'display: none';
         loading(true);
-        xhr.timeout = 60000;
-        xhr.onreadystatechange = function () {
-            var response = {};
-            if (xhr.readyState === 4 && xhr.status === 200) {
+        var remotePromise = getApiDataRemote(url);
+        getApiDataFromCache(url).then(function (data) {
+            if (data) {
                 loading(false);
-                try {
-                    response = JSON.parse(xhr.responseText);
-                }
-                catch (e) {
-                    response = xhr.responseText;
-                }
-                tip();
-                if (response.books.length === 0) {
-                    tip('无结果');
-                }
-                else {
-                    input.blur();
-                    fillList(response.books);
-                    document.querySelector('#js-thanks').style = 'display: block';
-                }
+                input.blur();            
+                fillList(data.books);
+                document.querySelector('#js-thanks').style = 'display: block';
             }
-        };
-        xhr.open('GET', url, true);
-        xhr.send(null);
+            cacheData = data || {};
+            return remotePromise;
+        }).then(function (data) {
+            if (JSON.stringify(data) !== JSON.stringify(cacheData)) {
+                loading(false);                
+                input.blur();
+                fillList(data.books);
+                document.querySelector('#js-thanks').style = 'display: block';
+            }
+        });
     }
 
     /**
@@ -126,4 +121,57 @@
             queryBook();
         }
     });
+
+    // 注册service worker
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').then(function () {
+            console.log('Service Worker 注册成功');
+        });
+    }
+
+    /**
+     * 获取该请求的缓存数据
+     * @param {string} url 请求的url
+     * @return {Promise}
+     */
+    function getApiDataFromCache(url) {
+        if ('caches' in window) {
+            return caches.match(url).then(function (cache) {
+                if (!cache) {
+                    return;
+                }
+                return cache.json();
+            });
+        }
+        else {
+            Promise.reject();
+        }
+    }
+
+    function getApiDataRemote(url) {
+        return new Promise(function (resolve, reject) {
+            var xhr = new XMLHttpRequest();
+            xhr.timeout = 60000;
+            xhr.onreadystatechange = function () {
+                var response = {};
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    try {
+                        response = JSON.parse(xhr.responseText);
+                    }
+                    catch (e) {
+                        response = xhr.responseText;
+                    }
+                    resolve(response);
+                }
+                else if (xhr.readyState === 4) {
+                    resolve();
+                }
+            };
+            xhr.onabort = reject;
+            xhr.onerror = reject;
+            xhr.ontimeout = reject;
+            xhr.open('GET', url, true);
+            xhr.send(null);
+        });
+    }
 })();
