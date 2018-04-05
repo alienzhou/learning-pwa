@@ -5,7 +5,7 @@
      */
     function createCard(book) {
         var li = document.createElement('li');
-        var img = document.createElement('img');
+        // var img = document.createElement('img');
         var title = document.createElement('div');
         var author = document.createElement('div');
         var desc = document.createElement('div');
@@ -14,7 +14,7 @@
         title.className = 'title';
         author.className = 'author';
         desc.className = 'desc';
-        img.src = book.image;
+        // img.src = book.image;
         title.innerText = book.title;
         author.innerText = book.author;
         publisher.innerText = book.publisher;
@@ -22,7 +22,7 @@
 
         book.publisher && desc.appendChild(publisher);
         book.price && desc.appendChild(price);
-        li.appendChild(img);
+        // li.appendChild(img);
         li.appendChild(title);
         li.appendChild(author);
         li.appendChild(desc);
