@@ -24,11 +24,14 @@
   },
   "homepage": "https://github.com/alienzhou/learning-pwa#readme",
   "dependencies": {
+    "https-proxy-agent": "^2.2.1",
     "koa": "^2.5.0",
+    "koa-body": "^2.5.0",
     "koa-router": "^7.4.0",
     "koa-static": "^4.0.2",
     "nedb": "^1.8.0",
-    "request": "^2.85.0"
+    "request": "^2.85.0",
+    "web-push": "^3.3.0"
   },
   "husky": {
     "hooks": {
