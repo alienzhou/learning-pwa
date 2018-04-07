@@ -144,7 +144,7 @@
             });
         }
         else {
-            return Promise.reject();
+            return Promise.resolve();
         }
     }
 
