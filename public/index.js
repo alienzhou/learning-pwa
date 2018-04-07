@@ -137,7 +137,7 @@
             });
         }
         else {
-            Promise.reject();
+            return Promise.resolve();
         }
     }
 
