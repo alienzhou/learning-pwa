@@ -1,4 +1,5 @@
 (function() {
+    var REG;
     /**
      * 生成书籍列表卡片（dom元素）
      * @param {Object} book 书籍相关数据
@@ -239,6 +240,32 @@
         var publicKey = 'BOEQSjdhorIf8M0XFNlwohK3sTzO9iJwvbYU-fuXRF0tvRpPPMGO6d_gJC_pUQwBT7wD8rKutpNTFHOHN3VqJ0A';
         // 注册service worker
         registerServiceWorker('./sw.js').then(function (registration) {
+            REG = registration;
+            /* 添加提醒功能 */
+            document.querySelector('#js-notification-btn').addEventListener('click', function () {
+                var title = '图书1';
+                var options = {
+                    body: 'dasfasdsa',
+                    icon: '/img/icons/book-128.png',
+                    image: '/img/icons/book-521.png', // no effect
+                    actions: [{
+                        action: 'coffee-action',
+                        title: 'Coffee',
+                        icon: '/img/icons/book-72.png'
+                    }, {
+                        action: 'doughnut-action',
+                        title: 'Doughnut',
+                        icon: '/img/icons/book-72.png'
+                    }],
+                    vibrate: [500,110,500,110,450,110,200,110,170,40,450,110,200,110,170,40,500], // no effect
+                    timestamp: Date.parse('01 Jan 2000 00:00:00'), // no effect
+                    tag: `msg-1`,
+                    renotify: true
+                };
+                registration.showNotification(title, options);
+            });
+            /* ********* */
+
             console.log('Service Worker 注册成功');
             // 开启该客户端的消息推送订阅功能
             return subscribeUserToPush(registration, publicKey);
@@ -252,4 +279,31 @@
         });
     }
     /* ========================== */
+
+    /* 消息通信 */
+    if ('serviceWorker' in navigator) {
+        var ch = new MessageChannel();
+        var p1 = ch.port1;
+        var p2 = ch.port2;
+
+        p1.onmessage = function (e) {
+            console.log("port1 receive " + e.data);
+        };
+        
+        document.querySelector('#js-post-btn').addEventListener('click', function () {
+            console.log(REG.active.postMessage)
+            // navigator.serviceWorker.controller && navigator.serviceWorker.controller.postMessage && navigator.serviceWorker.controller.postMessage('sw.updatedone', [p2]);
+            REG.active && REG.active.postMessage('firefox', [p2]);
+            p1.postMessage("你好世界");
+        });
+
+        setTimeout(function () {
+            p1.postMessage("你好世界2");
+        }, 5000);
+        // navigator.serviceWorker.addEventListener('message', function (e) {
+        //     alert(e.data);
+        // });
+    }
+
+    /* ****** */
 })();

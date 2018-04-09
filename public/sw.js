@@ -90,3 +90,48 @@ self.addEventListener('push', function (e) {
     }
 });
 /* ============== */
+
+/* ======================== */
+/* notification demo相关部分 */
+/* ======================= */
+// 添加service worker对push的监听
+self.addEventListener('notificationclick', function (e) {
+    console.log('On notification click: ', e.notification.tag);
+    if (!e.action) {
+        // Was a normal notification click
+        console.log('Notification Click.');
+        return;
+    }
+    
+    switch (e.action) {
+        case 'coffee-action':
+            console.log('User ❤️️\'s coffee.');
+            break;
+        case 'doughnut-action':
+            console.log('User ❤️️\'s doughnuts.');
+            break;
+        default:
+            console.log(`Unknown action clicked: '${e.action}'`);
+            break;
+    }
+    event.notification.close();
+
+    e.waitUntil(
+        self.clients.matchAll().then(function (clients) {
+            if (clients && clients.length) {
+                clients.forEach(function (client) {
+                    client.postMessage(e.action);
+                });
+            }
+        })
+    );
+});
+
+self.addEventListener('message', function (event) {
+    event.ports[0].postMessage('hihi');
+    console.log(event.data);
+    event.ports[0].onmessage = function (e) {
+        console.log(e.data);
+    }
+});
+/* ======================= */
