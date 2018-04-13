@@ -25,7 +25,7 @@ router.get('/book', async (ctx, next) => {
 /* 使用web-push进行消息推送 */
 /* ===================== */
 const options={
-    proxy: 'http://localhost:1087',
+    proxy: 'http://localhost:1087' // 使用FCM（Chrome）需要配置代理
 };
 
 /**
@@ -58,7 +58,7 @@ router.post('/subscription', koaBody(), async ctx => {
 /**
  * 向push service推送信息
  * @param {*} subscription 
- * @param {*} data 
+ * @param {*} data
  */
 function pushMessage(subscription, data = {}) {
     webpush.sendNotification(subscription, data, options).then(data => {
