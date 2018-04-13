@@ -270,8 +270,12 @@
             // 开启该客户端的消息推送订阅功能
             return subscribeUserToPush(registration, publicKey);
         }).then(function (subscription) {
+            var body = {subscription: subscription};
+            // 为了方便之后的推送，为每个客户端简单生成一个标识
+            body.uniqueid = new Date().getTime();
+            console.log('uniqueid', body.uniqueid);
             // 将生成的客户端订阅信息存储在自己的服务器上
-            return sendSubscriptionToServer(JSON.stringify(subscription));
+            return sendSubscriptionToServer(JSON.stringify(body));
         }).then(function (res) {
             console.log(res);
         }).catch(function (err) {

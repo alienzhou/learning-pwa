@@ -24,8 +24,8 @@ router.get('/book', async (ctx, next) => {
 /* ===================== */
 /* 使用web-push进行消息推送 */
 /* ===================== */
-const options={
-    proxy: 'http://localhost:1087',
+const options = {
+    // proxy: 'http://localhost:1087' // 使用FCM（Chrome）需要配置代理
 };
 
 /**
@@ -58,7 +58,7 @@ router.post('/subscription', koaBody(), async ctx => {
 /**
  * 向push service推送信息
  * @param {*} subscription 
- * @param {*} data 
+ * @param {*} data
  */
 function pushMessage(subscription, data = {}) {
     webpush.sendNotification(subscription, data, options).then(data => {
@@ -81,12 +81,12 @@ function pushMessage(subscription, data = {}) {
  * 本例子中，可以直接post一个请求来查看效果
  */
 router.post('/push', koaBody(), async ctx => {
-    let payload = ctx.request.body;    
-    let list = await util.findAll();
+    let {uniqueid, payload} = ctx.request.body;
+    let list = uniqueid ? await util.find({uniqueid}) : await util.findAll();
     let status = list.length > 0 ? 0 : -1;
 
     for (let i = 0; i < list.length; i++) {
-        let subscription = list[i];
+        let subscription = list[i].subscription;
         pushMessage(subscription, JSON.stringify(payload));
     }
 
