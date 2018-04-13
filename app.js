@@ -24,8 +24,8 @@ router.get('/book', async (ctx, next) => {
 /* ===================== */
 /* 使用web-push进行消息推送 */
 /* ===================== */
-const options={
-    proxy: 'http://localhost:1087' // 使用FCM（Chrome）需要配置代理
+const options = {
+    // proxy: 'http://localhost:1087' // 使用FCM（Chrome）需要配置代理
 };
 
 /**
