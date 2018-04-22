@@ -6,6 +6,7 @@ var apiCacheName = 'api-0-1-1';
 var cacheFiles = [
     '/',
     './index.html',
+    './base64util.js',
     './index.js',
     './style.css',
     './img/book.png',
@@ -72,3 +73,20 @@ self.addEventListener('fetch', function (e) {
         );
     }
 });
+
+/* ============== */
+/* push处理相关部分 */
+/* ============== */
+// 添加service worker对push的监听
+self.addEventListener('push', function (e) {
+    var data = e.data;
+    if (e.data) {
+        data = data.json();
+        console.log('push的数据为：', data);
+        self.registration.showNotification(data.text);        
+    } 
+    else {
+        console.log('push没有任何数据');
+    }
+});
+/* ============== */
