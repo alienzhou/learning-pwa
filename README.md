@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-# learning-pwa
-## // TODO
-some samples and blogs about how to start with your first PWA
-=======
 # 2018，开始你的PWA学习之旅
 PWA作为今年最火热的技术概念之一，对提升Web应用的安全、性能和体验有着很大的意义，非常值得我们去了解与学习。
 
@@ -80,4 +75,3 @@ npm run start
 作为本系列的第一篇文章，本文简单介绍了PWA与其相关的技术概念。通过学习PWA，我们可以很快将其中的优秀技术应用到我们的工作里。在下一部分（manifest分支），我就会介绍如何使用manifest来让你的Web App“更Native”，拥有一个App Shell。
 
 话不多说，下面就让我们来具体地学习PWA相关技术吧！
->>>>>>> aa4673735d8adb2d8e692e79b4086b1067fad1c7
