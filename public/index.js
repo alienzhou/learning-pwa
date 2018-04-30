@@ -243,23 +243,19 @@
             REG = registration;
             /* 添加提醒功能 */
             document.querySelector('#js-notification-btn').addEventListener('click', function () {
-                var title = '图书1';
+                var title = 'PWA即学即用';
                 var options = {
-                    body: 'dasfasdsa',
+                    body: '邀请你一起学习',
                     icon: '/img/icons/book-128.png',
                     image: '/img/icons/book-521.png', // no effect
                     actions: [{
-                        action: 'coffee-action',
-                        title: 'Coffee',
-                        icon: '/img/icons/book-72.png'
+                        action: 'show-book',
+                        title: '去看看'
                     }, {
-                        action: 'doughnut-action',
-                        title: 'Doughnut',
-                        icon: '/img/icons/book-72.png'
+                        action: 'contact-me',
+                        title: '联系我'
                     }],
-                    vibrate: [500,110,500,110,450,110,200,110,170,40,450,110,200,110,170,40,500], // no effect
-                    timestamp: Date.parse('01 Jan 2000 00:00:00'), // no effect
-                    tag: `msg-1`,
+                    tag: 'pwa-starter',
                     renotify: true
                 };
                 registration.showNotification(title, options);
@@ -286,27 +282,21 @@
 
     /* 消息通信 */
     if ('serviceWorker' in navigator) {
-        var ch = new MessageChannel();
-        var p1 = ch.port1;
-        var p2 = ch.port2;
-
-        p1.onmessage = function (e) {
-            console.log("port1 receive " + e.data);
-        };
-        
-        document.querySelector('#js-post-btn').addEventListener('click', function () {
-            console.log(REG.active.postMessage)
-            // navigator.serviceWorker.controller && navigator.serviceWorker.controller.postMessage && navigator.serviceWorker.controller.postMessage('sw.updatedone', [p2]);
-            REG.active && REG.active.postMessage('firefox', [p2]);
-            p1.postMessage("你好世界");
+        navigator.serviceWorker.addEventListener('message', function (e) {
+            var action = e.data;
+            console.log(`receive post-message from sw, action is '${e.data}'`);
+            switch (action) {
+                case 'show-book':
+                    location.href = 'https://book.douban.com/subject/20515024/';
+                    break;
+                case 'contact-me':
+                    location.href = 'mailto:someone@sample.com';
+                    break;
+                default:
+                    document.querySelector('.panel').classList.add('show');
+                    break;
+            }
         });
-
-        setTimeout(function () {
-            p1.postMessage("你好世界2");
-        }, 5000);
-        // navigator.serviceWorker.addEventListener('message', function (e) {
-        //     alert(e.data);
-        // });
     }
 
     /* ****** */

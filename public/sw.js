@@ -96,42 +96,32 @@ self.addEventListener('push', function (e) {
 /* ======================= */
 // 添加service worker对push的监听
 self.addEventListener('notificationclick', function (e) {
-    console.log('On notification click: ', e.notification.tag);
-    if (!e.action) {
-        // Was a normal notification click
-        console.log('Notification Click.');
-        return;
-    }
+    var action = e.action;
+    console.log(`action tag: ${e.notification.tag}`, `action: ${action}`);
     
-    switch (e.action) {
-        case 'coffee-action':
-            console.log('User ❤️️\'s coffee.');
+    switch (action) {
+        case 'show-book':
+            console.log('show-book');
             break;
-        case 'doughnut-action':
-            console.log('User ❤️️\'s doughnuts.');
+        case 'contact-me':
+            console.log('contact-me');
             break;
         default:
-            console.log(`Unknown action clicked: '${e.action}'`);
+            console.log(`未处理的action: ${e.action}`);
+            action = 'default';
             break;
     }
-    event.notification.close();
+    e.notification.close();
 
     e.waitUntil(
         self.clients.matchAll().then(function (clients) {
-            if (clients && clients.length) {
-                clients.forEach(function (client) {
-                    client.postMessage(e.action);
-                });
+            if (!clients || clients.length === 0) {
+                return;
             }
+            clients.forEach(function (client) {
+                client.postMessage(action);
+            });
         })
     );
-});
-
-self.addEventListener('message', function (event) {
-    event.ports[0].postMessage('hihi');
-    console.log(event.data);
-    event.ports[0].onmessage = function (e) {
-        console.log(e.data);
-    }
 });
 /* ======================= */
