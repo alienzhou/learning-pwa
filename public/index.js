@@ -239,6 +239,12 @@
         var publicKey = 'BOEQSjdhorIf8M0XFNlwohK3sTzO9iJwvbYU-fuXRF0tvRpPPMGO6d_gJC_pUQwBT7wD8rKutpNTFHOHN3VqJ0A';
         // 注册service worker
         registerServiceWorker('./sw.js').then(function (registration) {
+            return Promise.all([
+                registration,
+                askPermission()
+            ])
+        }).then(function (result) {
+            var registration = result[0];
             /* ===== 添加提醒功能 ====== */
             document.querySelector('#js-notification-btn').addEventListener('click', function () {
                 var title = 'PWA即学即用';
@@ -299,6 +305,25 @@
         });
     }
     /* ======================= */
+
+    /**
+     * 获取用户授权，将
+     */
+    function askPermission() {
+        return new Promise(function (resolve, reject) {
+            var permissionResult = Notification.requestPermission(function (result) {
+                resolve(result);
+            });
+      
+            if (permissionResult) {
+                permissionResult.then(resolve, reject);
+            }
+        }).then(function (permissionResult) {
+            if (permissionResult !== 'granted') {
+                throw new Error('We weren\'t granted permission.');
+            }
+        });
+    }
 
     /* ========================================== */
     /* ================== fin =================== */
