@@ -1,5 +1,4 @@
 (function() {
-    var REG;
     /**
      * 生成书籍列表卡片（dom元素）
      * @param {Object} book 书籍相关数据
@@ -169,9 +168,9 @@
         });
     }
 
-    /* ========================== */
-    /* service worker push相关部分 */
-    /* ========================== */
+    /* ========================================== */
+    /* service worker push 与 notification 相关部分 */
+    /* ========================================== */
     /**
      * 注意这里修改了前一篇文章中service worker注册部分的代码
      * 将service worker的注册封装为一个方法，方便使用
@@ -240,14 +239,12 @@
         var publicKey = 'BOEQSjdhorIf8M0XFNlwohK3sTzO9iJwvbYU-fuXRF0tvRpPPMGO6d_gJC_pUQwBT7wD8rKutpNTFHOHN3VqJ0A';
         // 注册service worker
         registerServiceWorker('./sw.js').then(function (registration) {
-            REG = registration;
-            /* 添加提醒功能 */
+            /* ===== 添加提醒功能 ====== */
             document.querySelector('#js-notification-btn').addEventListener('click', function () {
                 var title = 'PWA即学即用';
                 var options = {
                     body: '邀请你一起学习',
                     icon: '/img/icons/book-128.png',
-                    image: '/img/icons/book-521.png', // no effect
                     actions: [{
                         action: 'show-book',
                         title: '去看看'
@@ -260,16 +257,20 @@
                 };
                 registration.showNotification(title, options);
             });
-            /* ********* */
+            /* ======================= */
 
             console.log('Service Worker 注册成功');
+
             // 开启该客户端的消息推送订阅功能
             return subscribeUserToPush(registration, publicKey);
+
         }).then(function (subscription) {
             var body = {subscription: subscription};
+
             // 为了方便之后的推送，为每个客户端简单生成一个标识
             body.uniqueid = new Date().getTime();
             console.log('uniqueid', body.uniqueid);
+
             // 将生成的客户端订阅信息存储在自己的服务器上
             return sendSubscriptionToServer(JSON.stringify(body));
         }).then(function (res) {
@@ -278,9 +279,8 @@
             console.log(err);
         });
     }
-    /* ========================== */
 
-    /* 消息通信 */
+    /* ======= 消息通信 ======= */
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.addEventListener('message', function (e) {
             var action = e.data;
@@ -298,6 +298,9 @@
             }
         });
     }
+    /* ======================= */
 
-    /* ****** */
+    /* ========================================== */
+    /* ================== fin =================== */
+    /* ========================================== */
 })();

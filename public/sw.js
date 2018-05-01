@@ -74,27 +74,42 @@ self.addEventListener('fetch', function (e) {
     }
 });
 
-/* ============== */
-/* push处理相关部分 */
-/* ============== */
-// 添加service worker对push的监听
+/* ======================================= */
+/* push处理相关部分，已添加对notification的调用 */
+/* ======================================= */
 self.addEventListener('push', function (e) {
     var data = e.data;
     if (e.data) {
         data = data.json();
         console.log('push的数据为：', data);
-        self.registration.showNotification(data.text);        
+        var title = 'PWA即学即用';
+        var options = {
+            body: data,
+            icon: '/img/icons/book-128.png',
+            image: '/img/icons/book-521.png', // no effect
+            actions: [{
+                action: 'show-book',
+                title: '去看看'
+            }, {
+                action: 'contact-me',
+                title: '联系我'
+            }],
+            tag: 'pwa-starter',
+            renotify: true
+        };
+        self.registration.showNotification(title, options);        
     } 
     else {
         console.log('push没有任何数据');
     }
 });
-/* ============== */
+/* ======================================= */
+/* ================= fin ================= */
+/* ======================================= */
 
 /* ======================== */
 /* notification demo相关部分 */
 /* ======================= */
-// 添加service worker对push的监听
 self.addEventListener('notificationclick', function (e) {
     var action = e.action;
     console.log(`action tag: ${e.notification.tag}`, `action: ${action}`);
@@ -114,14 +129,18 @@ self.addEventListener('notificationclick', function (e) {
     e.notification.close();
 
     e.waitUntil(
+        // 获取所有clients
         self.clients.matchAll().then(function (clients) {
             if (!clients || clients.length === 0) {
                 return;
             }
             clients.forEach(function (client) {
+                // 使用postMessage进行通信
                 client.postMessage(action);
             });
         })
     );
 });
+/* ======================= */
+/* ========= fin ========= */
 /* ======================= */
