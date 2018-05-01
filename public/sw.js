@@ -132,8 +132,10 @@ self.addEventListener('notificationclick', function (e) {
         // 获取所有clients
         self.clients.matchAll().then(function (clients) {
             if (!clients || clients.length === 0) {
+                self.clients.openWindow && self.clients.openWindow('http://127.0.0.1:8085');
                 return;
             }
+            clients[0].focus && clients[0].focus();
             clients.forEach(function (client) {
                 // 使用postMessage进行通信
                 client.postMessage(action);
