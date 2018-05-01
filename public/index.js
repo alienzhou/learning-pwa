@@ -235,16 +235,11 @@
         });
     }
 
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
-        var publicKey = 'BOEQSjdhorIf8M0XFNlwohK3sTzO9iJwvbYU-fuXRF0tvRpPPMGO6d_gJC_pUQwBT7wD8rKutpNTFHOHN3VqJ0A';
+    if ('serviceWorker' in navigator) {
         // 注册service worker
         registerServiceWorker('./sw.js').then(function (registration) {
-            return Promise.all([
-                registration,
-                askPermission()
-            ])
-        }).then(function (result) {
-            var registration = result[0];
+            return askPermission();
+        }).then(function () {
             /* ===== 添加提醒功能 ====== */
             document.querySelector('#js-notification-btn').addEventListener('click', function () {
                 var title = 'PWA即学即用';
@@ -261,26 +256,19 @@
                     tag: 'pwa-starter',
                     renotify: true
                 };
-                registration.showNotification(title, options);
+                // registration.showNotification(title, options);
+
+                // 使用Notification构造函数创建提醒框
+                // 而非registration.showNotification()方法
+                var notification = new Notification(title, options);
+                notification.addEventListener('click', function (e) {
+                    document.querySelector('.panel').classList.add('show');
+                });
             });
             /* ======================= */
 
             console.log('Service Worker 注册成功');
 
-            // 开启该客户端的消息推送订阅功能
-            return subscribeUserToPush(registration, publicKey);
-
-        }).then(function (subscription) {
-            var body = {subscription: subscription};
-
-            // 为了方便之后的推送，为每个客户端简单生成一个标识
-            body.uniqueid = new Date().getTime();
-            console.log('uniqueid', body.uniqueid);
-
-            // 将生成的客户端订阅信息存储在自己的服务器上
-            return sendSubscriptionToServer(JSON.stringify(body));
-        }).then(function (res) {
-            console.log(res);
         }).catch(function (err) {
             console.log(err);
         });
