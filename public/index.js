@@ -168,9 +168,9 @@
         });
     }
 
-    /* ========================== */
-    /* service worker push相关部分 */
-    /* ========================== */
+    /* ========================================== */
+    /* service worker push 与 notification 相关部分 */
+    /* ========================================== */
     /**
      * 注意这里修改了前一篇文章中service worker注册部分的代码
      * 将service worker的注册封装为一个方法，方便使用
@@ -239,17 +239,93 @@
         var publicKey = 'BOEQSjdhorIf8M0XFNlwohK3sTzO9iJwvbYU-fuXRF0tvRpPPMGO6d_gJC_pUQwBT7wD8rKutpNTFHOHN3VqJ0A';
         // 注册service worker
         registerServiceWorker('./sw.js').then(function (registration) {
+            return Promise.all([
+                registration,
+                askPermission()
+            ])
+        }).then(function (result) {
+            var registration = result[0];
+            /* ===== 添加提醒功能 ====== */
+            document.querySelector('#js-notification-btn').addEventListener('click', function () {
+                var title = 'PWA即学即用';
+                var options = {
+                    body: '邀请你一起学习',
+                    icon: '/img/icons/book-128.png',
+                    actions: [{
+                        action: 'show-book',
+                        title: '去看看'
+                    }, {
+                        action: 'contact-me',
+                        title: '联系我'
+                    }],
+                    tag: 'pwa-starter',
+                    renotify: true
+                };
+                registration.showNotification(title, options);
+            });
+            /* ======================= */
+
             console.log('Service Worker 注册成功');
+
             // 开启该客户端的消息推送订阅功能
             return subscribeUserToPush(registration, publicKey);
+
         }).then(function (subscription) {
+            var body = {subscription: subscription};
+
+            // 为了方便之后的推送，为每个客户端简单生成一个标识
+            body.uniqueid = new Date().getTime();
+            console.log('uniqueid', body.uniqueid);
+
             // 将生成的客户端订阅信息存储在自己的服务器上
-            return sendSubscriptionToServer(JSON.stringify(subscription));
+            return sendSubscriptionToServer(JSON.stringify(body));
         }).then(function (res) {
             console.log(res);
         }).catch(function (err) {
             console.log(err);
         });
     }
-    /* ========================== */
+
+    /* ======= 消息通信 ======= */
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', function (e) {
+            var action = e.data;
+            console.log(`receive post-message from sw, action is '${e.data}'`);
+            switch (action) {
+                case 'show-book':
+                    location.href = 'https://book.douban.com/subject/20515024/';
+                    break;
+                case 'contact-me':
+                    location.href = 'mailto:someone@sample.com';
+                    break;
+                default:
+                    document.querySelector('.panel').classList.add('show');
+                    break;
+            }
+        });
+    }
+    /* ======================= */
+
+    /**
+     * 获取用户授权，将
+     */
+    function askPermission() {
+        return new Promise(function (resolve, reject) {
+            var permissionResult = Notification.requestPermission(function (result) {
+                resolve(result);
+            });
+      
+            if (permissionResult) {
+                permissionResult.then(resolve, reject);
+            }
+        }).then(function (permissionResult) {
+            if (permissionResult !== 'granted') {
+                throw new Error('We weren\'t granted permission.');
+            }
+        });
+    }
+
+    /* ========================================== */
+    /* ================== fin =================== */
+    /* ========================================== */
 })();

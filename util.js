@@ -28,15 +28,23 @@ module.exports.post = function (url, opt = {}) {
 };
 
 module.exports.saveRecord = function (obj) {
+    let {uniqueid, subscription} = obj;
     return new Promise((r, j) => {
-        db.findOne(obj, (err, res) => {
+        db.findOne({'subscription.endpoint': subscription.endpoint}, (err, res) => {
             if (err) {
                 j(err);
                 return;
             }
             if (res) {
                 console.log('已存在');
-                r(obj);
+                res.uniqueid = uniqueid;
+                db.update({subscription}, res, {}, err => {
+                    if (err) {
+                        j(err);
+                        return;
+                    }
+                    r(obj);
+                });
                 return;
             }
             db.insert(obj, (err, item) => {
@@ -54,6 +62,18 @@ module.exports.saveRecord = function (obj) {
 module.exports.findAll = function () {
     return new Promise((r, j) => {
         db.find({}, (err, list) => {
+            if (err) {
+                j(err);
+                return;
+            }
+            r(list);
+        });
+    });
+};
+
+module.exports.find = function (query) {
+    return new Promise((r, j) => {
+        db.find(query, (err, list) => {
             if (err) {
                 j(err);
                 return;
