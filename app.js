@@ -96,6 +96,17 @@ router.post('/push', koaBody(), async ctx => {
 });
 /* ===================== */
 
+/* ================================ */
+/* 添加一个接口，用以相应后台同步内的请求 */
+/* ================================ */
+router.get('/sync', async (ctx, next) => {
+    console.log(`Hello ${ctx.request.query.name}, I have received your msg`);
+    ctx.response.body = {
+        status: 0
+    };
+});
+/* ================================ */
+
 app.use(router.routes());
 app.use(serve(__dirname + '/public'));
 app.listen(port, () => {

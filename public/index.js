@@ -324,7 +324,113 @@
             }
         });
     }
+    /* ========================================== */
+    /* ================== fin =================== */
+    /* ========================================== */
 
+
+
+    /* ========================================== */
+    /*   service worker background sync 相关部分   */
+    /* ========================================== */
+    var STORE_NAME = 'SyncData';
+    if ('serviceWorker' in navigator && 'SyncManager' in window) {
+        // 一个background sync的基础版
+        navigator.serviceWorker.ready.then(function (registration) {
+            var tag = 'sample_sync';
+
+            document.getElementById('js-sync-btn').addEventListener('click', function () {
+                registration.sync.register(tag).then(function () {
+                    console.log('后台同步已触发', tag);
+                }).catch(function (err) {
+                    console.log('后台同步触发失败', err);
+                });
+            });
+        });
+
+        // 使用postMessage来传输sync数据
+        navigator.serviceWorker.ready.then(function (registration) {
+            var tag = 'sample_sync_event';
+
+            document.getElementById('js-sync-event-btn').addEventListener('click', function () {
+                registration.sync.register(tag).then(function () {
+                    console.log('后台同步已触发', tag);
+
+                    // 使用postMessage进行数据通信
+                    var inputValue = document.querySelector('#js-search-input').value;
+                    var msg = JSON.stringify({type: 'bgsync', msg: {name: inputValue}});
+                    navigator.serviceWorker.controller.postMessage(msg);
+                }).catch(function (err) {
+                    console.log('后台同步触发失败', err);
+                });
+            });
+        });
+
+        // 使用indexedDB来传输sync数据
+        navigator.serviceWorker.ready.then(function (registration) {
+            return Promise.all([
+                openStore(STORE_NAME),
+                registration
+            ]);
+        }).then(function (result) {
+            var db = result[0];
+            var registration = result[1];
+            var tag = 'sample_sync_db';
+
+            document.getElementById('js-sync-db-btn').addEventListener('click', function () {
+                // 将数据存储进indexedDB
+                var inputValue = document.querySelector('#js-search-input').value;
+                var tx = db.transaction(STORE_NAME, 'readwrite');
+                var store = tx.objectStore(STORE_NAME);
+                var item = {
+                    tag: tag,
+                    name: inputValue
+                };
+                store.put(item);
+
+                registration.sync.register(tag).then(function () {
+                    console.log('后台同步已触发', tag);
+                }).catch(function (err) {
+                    console.log('后台同步触发失败', err);
+                });
+            });
+        });
+    }
+
+    /**
+     * 连接并打开存储，使用indexedDB
+     * @param {string} storeName 存储的名称
+     * @return {Promise}
+     */
+    function openStore(storeName) {
+        return new Promise(function (resolve, reject) {
+            if (!('indexedDB' in window)) {
+                reject('don\'t support indexedDB');
+            }
+            var request = indexedDB.open('PWA_DB', 1);
+            request.onerror = function(e) {
+                console.log('连接数据库失败');
+                reject(e);
+            }
+            request.onsuccess = function(e) {
+                console.log('连接数据库成功');
+                resolve(e.target.result);
+            }
+            request.onupgradeneeded = function (e) {
+                console.log('数据库版本升级');
+                var db = e.srcElement.result;
+                if (e.oldVersion === 0) {
+                    if (!db.objectStoreNames.contains(storeName)) {
+                        var store = db.createObjectStore(storeName, {
+                            keyPath: 'tag'
+                        });
+                        store.createIndex(storeName + 'Index', 'tag', {unique: false});
+                        console.log('创建索引成功');
+                    }
+                }
+            }
+        });
+    }
     /* ========================================== */
     /* ================== fin =================== */
     /* ========================================== */

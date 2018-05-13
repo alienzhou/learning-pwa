@@ -149,6 +149,23 @@ main {
     background: #be4469;
 }
 
+.sync-btn {
+    position: fixed;
+    bottom: 70px;
+    right: 20px;
+    background: #473d80;
+}
+
+.sync-event-btn {
+    bottom: 150px;
+    letter-spacing: 0;
+}
+
+.sync-db-btn {
+    bottom: 110px;
+    letter-spacing: 0;
+}
+
 .panel {
     position: fixed;
     border-radius: 3px;
