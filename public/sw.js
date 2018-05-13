@@ -146,3 +146,137 @@ self.addEventListener('notificationclick', function (e) {
 /* ======================= */
 /* ========= fin ========= */
 /* ======================= */
+
+
+
+/* =========================== */
+/* background sync demo相关部分 */
+/* =========================== */
+class SimpleEvent {
+    constructor() {
+        this.listenrs = {};
+    }
+
+    once(tag, cb) {
+        this.listenrs[tag] || (this.listenrs[tag] = []);
+        this.listenrs[tag].push(cb);
+    }
+
+    trigger(tag, data) {
+        this.listenrs[tag] = this.listenrs[tag] || [];
+        let listenr;
+        while (listenr = this.listenrs[tag].shift()) {
+            listenr(data)
+        }
+    }
+}
+
+const simpleEvent = new SimpleEvent();
+self.addEventListener('sync', function (e) {
+    console.log(`service worker需要进行后台同步，tag: ${e.tag}`);
+    var init = {
+        method: 'GET'
+    };
+    if (e.tag === 'sample_sync') {
+        var request = new Request(`sync?name=AlienZHOU`, init);
+        e.waitUntil(
+            fetch(request).then(function (response) {
+                response.json().then(console.log.bind(console));
+                return response;
+            })
+        );
+    }
+
+    // sample_sync_event同步事件，使用postMessage来进行数据通信
+    else if (e.tag === 'sample_sync_event') {
+        let msgPromise = new Promise(function (resolve, reject) {
+            // 监听message事件中触发的事件通知
+            simpleEvent.once('bgsync', function (data) {
+                resolve(data);
+            });
+            // 五秒超时
+            setTimeout(resolve, 5000);
+        });
+
+        e.waitUntil(
+            msgPromise.then(function (data) {
+                var name = data && data.name ? data.name : 'anonymous';
+                var request = new Request(`sync?name=${name}`, init);
+                return fetch(request)
+            }).then(function (response) {
+                response.json().then(console.log.bind(console));
+                return response;
+            })
+        );
+    }
+
+    // sample_sync_db同步事件，使用indexedDB来获取需要同步的数据
+    else if (e.tag === 'sample_sync_db') {
+        // 将数据库查询封装为Promise类型的请求
+        var dbQueryPromise = new Promise(function (resolve, reject) {
+            var STORE_NAME = 'SyncData';
+            // 连接indexedDB
+            openStore(e.tag).then(function (db) {
+                try {
+                    // 创建事务进行数据库查询
+                    var tx = db.transaction(STORE_NAME, 'readonly');
+                    var store = tx.objectStore(STORE_NAME);
+                    var dbRequest = store.get(e.tag);
+                    dbRequest.onsuccess = function (e) {
+                        resolve(e.target.result);
+                    };
+                    dbRequest.onerror = function (err) {
+                        reject(err);
+                    };
+                }
+                catch (err) {
+                    reject(err);
+                }
+            });
+        });
+
+        e.waitUntil(
+            // 通过数据库查询获取需要同步的数据
+            dbQueryPromise.then(function (data) {
+                console.log(data);
+                var name = data && data.name ? data.name : 'anonymous';
+                var request = new Request(`sync?name=${name}`, init);
+                return fetch(request)
+            }).then(function (response) {
+                response.json().then(console.log.bind(console));
+                return response;
+            })
+        );
+    }
+});
+
+self.addEventListener('message', function (e) {
+    var data = JSON.parse(e.data);
+    var type = data.type;
+    var msg = data.msg;
+    console.log(`service worker收到消息 type：${type}；msg：${JSON.stringify(msg)}`);
+
+    simpleEvent.trigger(type, msg);
+});
+
+/**
+ * 连接并打开存储
+ * @param {string} storeName 存储的名称
+ * @return {Promise}
+ */
+function openStore(storeName) {
+    return new Promise(function (resolve, reject) {
+        var request = indexedDB.open('PWA_DB', 1);
+        request.onerror = function(e) {
+            console.log('连接数据库失败');
+            reject(e);
+        }
+        request.onsuccess = function(e) {
+            console.log('连接数据库成功');
+            resolve(e.target.result);
+        }
+    });
+}
+/* =========================== */
+/* =========== fin =========== */
+/* =========================== */
