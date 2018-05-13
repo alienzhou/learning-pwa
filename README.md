@@ -1,385 +1,438 @@
 ## 1. 引言
-在第五篇文章[《Web中进行服务端消息推送》](https://juejin.im/post/5accd1355188252b0b201fb9)中，我介绍了如何使用Push API进行服务端消息推送。提到Push就不得不说与其联系紧密的另一个API——Notification API。它让我们可以在“网站外”显示消息提示：
+生活中经常会有这样的场景：
 
-![](https://user-gold-cdn.xitu.io/2018/5/1/1631a562ba773ddd?w=1275&h=762&f=gif&s=384884)
+用户拿出手机，浏览着我们的网站，发现了一个很有趣的信息，点击了“提交”按钮。然而不幸的是，这时用户到了一个网络环境极差的地方，或者是根本没有网络。他能够做的只有看着页面上的提示框和不断旋转的等待小圆圈。1s、5s、30s、1min……无尽的等待后，用户将手机放回了口袋，而这一次的请求也被终止了——由于当下极差的网络终止在了客户端。
 
-即使当你切换到其他Tab，也可以通过提醒交互来快速让用户回到你的网站；甚至当用户离开当前网站，仍然可以收到系统的提醒消息，并且可以通过消息提醒快速打开你的网站。
+上面的场景其实暴露了两个问题：
 
-![](https://user-gold-cdn.xitu.io/2018/5/1/1631b52052cccb59?w=1270&h=676&f=gif&s=2317289)
+1. 普通的页面发起的请求会随着浏览器进程的结束/或者Tab页面的关闭而终止；
+2. 无网环境下，没有一种机制能“维持”住该请求，以待有网情况下再进行请求。
 
-Notification的功能本身与Push并不耦合，你完全可以只使用Notification API或者Push API来构建Web App的某些功能。因此，本文会先介绍如何使用Notification API。然后，作为Notification的“黄金搭档”，本文还会介绍如何组合使用Push & Notification（消息推送与提醒）。
+然而，Service Worker的后台同步功能规避了这些缺陷。下面就让我们先来了解下后台同步（Background Sync）的工作原理。
 
-## 2. 使用Notification API
-在这第二节里，我们先来了解如何独立使用Notification功能。相较于第五篇中的Push功能，Notification API更加简洁易懂。
+## 2. 后台同步是如何工作的？
 
-### 2.1. 获取提醒权限
+后台同步应该算是Service Worker相关功能（API）中比较易于理解与使用的一个。
 
-首先，进行调用消息提醒API需要获得用户的授权。
+其大致的流程如下：
 
-在调用Notification相关API之前，需要先使用`Notification`对象上的静态方法`Notification.requestPermission()`来获取授权。由于`Notification.requestPermission()`在某些版本浏览器中会接收一个回调函数（`Notification.requestPermission(callback)`）作为参数，而在另一些浏览器版本中会返回一个promise，因此将该方法进行包装，统一为promise调用：
+![](https://user-gold-cdn.xitu.io/2018/5/13/1635905056b125a7?w=573&h=129&f=png&s=8623)
+
+1. 首先，你需要在Service Worker中监听sync事件；
+2. 然后，在浏览器中发起后台同步sync（图中第一步）；
+3. 之后，会触发Service Worker的sync事件，在该监听的回调中进行操作，例如向后端发起请求（图中第二步）
+4. 最后，可以在Service Worker中对服务端返回的数据进行处理。
+
+由于Service Worker在用户关闭该网站后仍可以运行，因此该流程名为“后台同步”实在是非常贴切。
+
+怎么样，在我们已经有了一定的Service Worker基础之后，后台同步这一功能相比之前的功能，是不是非常易于理解？
+
+## 3. 如何使用后台同步功能？
+
+既然已经理解了该功能的大致流程，那么接下来就让我们来实际操作一下吧。
+
+### 3.1 client触发sync事件
 
 ```javascript
 // index.js
-function askPermission() {
-    return new Promise(function (resolve, reject) {
-        var permissionResult = Notification.requestPermission(function (result) {
-            resolve(result);
+navigator.serviceWorker.ready.then(function (registration) {
+    var tag = "sample_sync";
+    document.getElementById('js-sync-btn').addEventListener('click', function () {
+        registration.sync.register(tag).then(function () {
+            console.log('后台同步已触发', tag);
+        }).catch(function (err) {
+            console.log('后台同步触发失败', err);
         });
-  
-        if (permissionResult) {
-            permissionResult.then(resolve, reject);
+    });
+});
+```
+由于后台同步功能需要在Service Worker注册完成后触发，因此较好的一个方式是在`navigator.serviceWorker.ready`之后绑定相关操作。例如上面的代码中，我们在ready后绑定了按钮的点击事件。当按钮被点击后，会使用`registration.sync.register()`方法来触发Service Worker的sync事件。
+
+`registration.sync`返回一个[`SyncManager`对象](https://developer.mozilla.org/en-US/docs/Web/API/SyncManager)，其上包含`register`和`getTags`两个方法：
+
+> `register()` Create a new sync registration and return a Promise. 
+
+> `getTags()` Return a list of developer-defined identifiers for SyncManager registration.
+
+`register()`方法可以注册一个后台同步事件，其中接收的参数`tag`用于作为这个后台同步的唯一标识。
+
+当然，如果想要代码更健壮的话，我们还需要在调用前进行特性检测：
+
+```javascript
+// index.js
+if ('serviceWorker' in navigator && 'SyncManager' in window) {
+    // ……
+}
+```
+
+### 3.2 在Service Worker中监听sync事件
+当client触发了sync事件后，剩下的就交给Service Worker。理论上此时就不需要client（前端站点）参与了。例如另一个经典场景：用户离开时页面（unload）时在client端触发sync事件，剩下的操作交给Service Worker，Service Worker的操作可以在离开页面后正常进行。
+
+像添加fetch和push事件监听那样，我们可以为Service Worker添加sync事件的监听：
+
+```javascript
+// sw.js
+self.addEventListener('sync', function (e) {
+    // ……
+});
+```
+
+在sync事件的event对象上可以取到tag值，该值就是我们在上一节注册sync时的唯一标识。通过这个tag就可以区分出不同的后台同步事件。例如，当该值为'sample_sync'时我们向后端发送一个请求：
+
+```javascript
+// sw.js
+self.addEventListener('sync', function (e) {
+    console.log(`service worker需要进行后台同步，tag: ${e.tag}`);
+    var init = {
+        method: 'GET'
+    };
+    if (e.tag === 'sample_sync') {
+        var request = new Request(`sync?name=AlienZHOU`, init);
+        e.waitUntil(
+            fetch(request).then(function (response) {
+                response.json().then(console.log.bind(console));
+                return response;
+            })
+        );
+    }
+});
+```
+这里我通过`e.tag`来判断client触发的不同sync事件，并在监听到tag为'sample_sync'的sync事件后，构建了一个request对象，使用fetch API来进行后端请求。
+
+需要特别注意的是，fetch请求一定要放在`e.waitUntil()`内。因为我们要保证“后台同步”，将Promise对象放在`e.waitUntil()`内可以确保在用户离开我们的网站后，Service Worker会持续在后台运行，等待该请求完成。
+
+### 3.3 完善我们的后端服务
+实际上，经过上面两小节，我们的大致工作已经完成。不过还缺少一个小环节：我们的KOA服务器上还没有sync路由和接口。添加一下，以保证demo可以正常运行：
+
+```javascript
+// app.js
+router.get('/sync', async (ctx, next) => {
+    console.log(`Hello ${ctx.request.query.name}, I have received your msg`);
+    ctx.response.body = {
+        status: 0
+    };
+});
+```
+
+### 3.4 Demo效果展示
+
+下面就来看一下这个demo的运行效果：
+
+![](https://user-gold-cdn.xitu.io/2018/5/13/1635975104e68836?w=800&h=499&f=gif&s=1947627)
+
+可以看到，在网络环境正常的情况下，点击“同步”按钮会立即触发Service Worker中的sync事件监听，并向服务端发送请求；而在断网情况下，点击“同步”按钮，控制台虽然显示注册了同步事件，但是并不会触发Service Worker的sync监听回调，指到恢复网络连接，才会在后台（Service Worker）中进行相关处理。
+
+下面再来看一下触发sync事件后，关闭网站的效果：
+
+![](https://user-gold-cdn.xitu.io/2018/5/13/163598ca174364ed?w=800&h=499&f=gif&s=2269837)
+
+可以看到，即使在关闭网站后再重新连接网络，服务端依然可以收到来自客户端的请求（说明Service Worker在后台进行了相关处理）。
+
+## 4. 如何在后台同步时获取所需的数据？
+
+其实上一节结束，我们就已经可以了解最基础的后台同步功能了。而这部分则会进一步探讨后台同步中的一个重要问题：如何在后台同步时获取并发送client中的数据？
+
+例如在我们的上一个Demo中，用户的姓名name是硬编码在Service Worker中的，而实际上，我们希望能在页面上提供一个输入框，将用户的输入内容在后台同步中进行发送。
+
+实现的方式有两种：使用postMessage或使用indexedDB。
+
+### 4.1 使用postMessage
+
+我们知道，在浏览器主线程与Web Worker线程之间可以通过postMessage来进行通信。因此，我们也可以使用这个方法来向Service Worker“传输”数据。
+
+大致思路如下：
+
+1. client触发sync事件；
+2. 在sync注册完成后，使用postMessage和Service Worker通信；
+3. 在Service Worker的sync事件回调中等待message事件的消息；
+4. 收到message事件的消息后，将其中的信息提交到服务端。
+
+```javascript
+// index.js
+// 使用postMessage来传输sync数据
+navigator.serviceWorker.ready.then(function (registration) {
+    var tag = 'sample_sync_event';
+
+    document.getElementById('js-sync-event-btn').addEventListener('click', function () {
+        registration.sync.register(tag).then(function () {
+            console.log('后台同步已触发', tag);
+
+            // 使用postMessage进行数据通信
+            var inputValue = document.querySelector('#js-search-input').value;
+            var msg = JSON.stringify({type: 'bgsync', msg: {name: inputValue}});
+            navigator.serviceWorker.controller.postMessage(msg);
+        }).catch(function (err) {
+            console.log('后台同步触发失败', err);
+        });
+    });
+});
+```
+
+在`registration.sync.register`完成后，调用`navigator.serviceWorker.controller.postMessage`来向Service Worker Post数据。
+
+为了提高代码的可维护性，我在sw.js中创建了一个`SimpleEvent`类，你可以把它看做一个最简单的EventBus。用来解耦Service Worker的message事件和sync事件。
+
+```javascript
+// sw.js
+class SimpleEvent {
+    constructor() {
+        this.listenrs = {};
+    }
+
+    once(tag, cb) {
+        this.listenrs[tag] || (this.listenrs[tag] = []);
+        this.listenrs[tag].push(cb);
+    }
+
+    trigger(tag, data) {
+        this.listenrs[tag] = this.listenrs[tag] || [];
+        let listenr;
+        while (listenr = this.listenrs[tag].shift()) {
+            listenr(data)
         }
-    }).then(function (permissionResult) {
-        if (permissionResult !== 'granted') {
-            throw new Error('We weren\'t granted permission.');
+    }
+}
+```
+
+在message事件中监听client发来的消息，并通过SimpleEvent通知所有监听者。
+
+```javascript
+// sw.js
+const simpleEvent = new SimpleEvent();
+self.addEventListener('message', function (e) {
+    var data = JSON.parse(e.data);
+    var type = data.type;
+    var msg = data.msg;
+    console.log(`service worker收到消息 type：${type}；msg：${JSON.stringify(msg)}`);
+
+    simpleEvent.trigger(type, msg);
+});
+```
+
+在sync事件中，使用SimpleEvent监听bgsync来获取数据，然后再调用fetch方法。注意，由于`e.waitUntil()`需要接收Promise作为参数，因此需要对`SimpleEvent.once`进行Promisfy。
+
+```javascript
+// sw.js
+self.addEventListener('sync', function (e) {
+    if (e.tag === xxx) {
+        // ……
+    }
+
+    // sample_sync_event同步事件，使用postMessage来进行数据通信
+    else if (e.tag === 'sample_sync_event') {
+        // 将SimpleEvent.once封装为Promise调用
+        let msgPromise = new Promise(function (resolve, reject) {
+            // 监听message事件中触发的事件通知
+            simpleEvent.once('bgsync', function (data) {
+                resolve(data);
+            });
+            // 五秒超时
+            setTimeout(resolve, 5000);
+        });
+
+        e.waitUntil(
+            msgPromise.then(function (data) {
+                var name = data && data.name ? data.name : 'anonymous';
+                var request = new Request(`sync?name=${name}`, init);
+                return fetch(request)
+            }).then(function (response) {
+                response.json().then(console.log.bind(console));
+                return response;
+            })
+        );
+    }
+});
+```
+
+是不是非常简单？
+
+![](https://user-gold-cdn.xitu.io/2018/5/14/1635a5723bed476c?w=800&h=499&f=gif&s=2772919)
+
+进行后台同步时，使用postMessage来实现client向Service Worker的传输数据，方便与直观，是一个不错的方法。
+
+### 4.2 使用indexedDB
+
+在client与Servcie Worker之间同步数据，还有一个可行的思路：client先将数据存在某处，待Servcie Worker需要时再读取使用即可。
+
+为此需要找一个存数据的地方。你第一个想到的可能就是localStorage了。
+
+然而，不知道你是否还记得我在最开始介绍Service Worker时所提到的，为了保证性能，实现部分操作的非阻塞，在Service Worker中我们经常会碰到异步操作（因此大多数API都是Promise形式的）。那么像localStorage这样的同步API会变成异步化么？答案很简单：不会，并且localStorage在Servcie Worker中无法调用。
+
+不过不要气馁，我们还另一个强大的数据存储方式——indexedDB。它是可以在Service Worker中使用的。对于indexedDB的使用方式，本系列后续会有文章具体介绍，因此在这里的就不重点讲解indexedDB的使用方式了。
+
+首先，需要一个方法用于连接数据库并创建相应的store：
+
+```javascript
+// index.js
+function openStore(storeName) {
+    return new Promise(function (resolve, reject) {
+        if (!('indexedDB' in window)) {
+            reject('don\'t support indexedDB');
+        }
+        var request = indexedDB.open('PWA_DB', 1);
+        request.onerror = function(e) {
+            console.log('连接数据库失败');
+            reject(e);
+        }
+        request.onsuccess = function(e) {
+            console.log('连接数据库成功');
+            resolve(e.target.result);
+        }
+        request.onupgradeneeded = function (e) {
+            console.log('数据库版本升级');
+            var db = e.srcElement.result;
+            if (e.oldVersion === 0) {
+                if (!db.objectStoreNames.contains(storeName)) {
+                    var store = db.createObjectStore(storeName, {
+                        keyPath: 'tag'
+                    });
+                    store.createIndex(storeName + 'Index', 'tag', {unique: false});
+                    console.log('创建索引成功');
+                }
+            }
         }
     });
 }
-
-
-registerServiceWorker('./sw.js').then(function (registration) {
-    return Promise.all([
-        registration,
-        askPermission()
-    ])
- })
 ```
-我们创建了一个`askPermission()`方法来统一`Notification.requestPermission()`的调用形式，并在Service Worker注册完成后调用该方法。调用`Notification.requestPermission()`获取的`permissionResult`可能的值为：
 
-- denied：用户拒绝了通知的显示
-- granted：用户允许了通知的显示
-- default：因为不知道用户的选择，所以浏览器的行为与denied时相同
-
-chrome中，可以在`chrome://settings/content/notifications`里进行通知的设置与管理。
-
-### 2.2. 设置你的提醒内容
-获取用户授权后，我们就可以通过`registration.showNotification()`方法进行消息提醒了。
-
-当我们注册完Service Worker后，`then`方法的回调函数会接收一个`registration`参数，通过调用其上的`showNotification()`方法即可触发提醒：
+然后，在`navigator.serviceWorker.ready`中打开该数据库连接，并在点击按钮时，先将数据存入indexedDB，再注册sync：
 
 ```javascript
 // index.js
-registerServiceWorker('./sw.js').then(function (registration) {
+navigator.serviceWorker.ready.then(function (registration) {
     return Promise.all([
-        registration,
-        askPermission()
-    ])
+        openStore(STORE_NAME),
+        registration
+    ]);
 }).then(function (result) {
-    var registration = result[0];
-    /* ===== 添加提醒功能 ====== */
-    document.querySelector('#js-notification-btn').addEventListener('click', function () {
-        var title = 'PWA即学即用';
-        var options = {
-            body: '邀请你一起学习',
-            icon: '/img/icons/book-128.png',
-            actions: [{
-                action: 'show-book',
-                title: '去看看'
-            }, {
-                action: 'contact-me',
-                title: '联系我'
-            }],
-            tag: 'pwa-starter',
-            renotify: true
+    var db = result[0];
+    var registration = result[1];
+    var tag = 'sample_sync_db';
+
+    document.getElementById('js-sync-db-btn').addEventListener('click', function () {
+        // 将数据存储进indexedDB
+        var inputValue = document.querySelector('#js-search-input').value;
+        var tx = db.transaction(STORE_NAME, 'readwrite');
+        var store = tx.objectStore(STORE_NAME);
+        var item = {
+            tag: tag,
+            name: inputValue
         };
-        registration.showNotification(title, options);
+        store.put(item);
+
+        registration.sync.register(tag).then(function () {
+            console.log('后台同步已触发', tag);
+        }).catch(function (err) {
+            console.log('后台同步触发失败', err);
+        });
     });
-    /* ======================= */
-})
-```
-
-上面这段代码为页面上的button添加了一个click事件监听：当点击后，调用`registration.showNotification()`方法来显示消息提醒，该方法接收两个参数：`title`与`option`。`title`用来设置该提醒的主标题，`option`中则包含了一些其他设置。
-
-- body：提醒的内容
-- icon：提醒的图标
-- actions：提醒可以包含一些自定义操作
-- tag：相当于是ID，通过该ID标识可以操作特定的notification
-- renotify：是否允许重复提醒，默认为false。当不允许重复提醒时，同一个tag的notification只会显示一次
-
-![](https://user-gold-cdn.xitu.io/2018/5/1/1631a6c6007ffec9?w=800&h=300&f=jpeg&s=114296)
-
-![](https://user-gold-cdn.xitu.io/2018/5/1/1631a6f12cc17f0c?w=800&h=161&f=jpeg&s=66563)
-
-> 注意，由于不同浏览器中，对于`option`属性的支持情况并不相同。部分属性在一些浏览器中并不支持。
-
-### 2.3. 捕获用户的点击
-在上一部分中，我们已经为Web App添加了提醒功能。点击页面中的“提醒”按钮，系统就会弹出提醒框，并展示相关提醒消息。
-
-然而更多的时候，我们并不仅仅希望只展示有限的信息，更希望能引导用户进行交互。例如推荐一本新书，让用户点击阅读或购买。在上一部分我们设置的提醒框中，包含了“去看看”和“联系我”两个按钮选项，那么怎么做才能捕获用户的点击操作，并且知道用户点击了哪个呢？这一小节，就会告诉你如何实现。
-
-还记的上一部分里我们定义的actions么？
-
-```javascript
-…
-actions: [{
-    action: 'show-book',
-    title: '去看看'
-    }, {
-    action: 'contact-me',
-    title: '联系我'
-}]
-…
-```
-为了能够响应用户对于提醒框的点击事件，我们需要在Service Worker中监听`notificationclick`事件。在该事件的回调函数中我们可以获取点击的相关信息：
-
-```javascript
-// sw.js
-self.addEventListener('notificationclick', function (e) {
-    var action = e.action;
-    console.log(`action tag: ${e.notification.tag}`, `action: ${action}`);
-    
-    switch (action) {
-        case 'show-book':
-            console.log('show-book');
-            break;
-        case 'contact-me':
-            console.log('contact-me');
-            break;
-        default:
-            console.log(`未处理的action: ${e.action}`);
-            action = 'default';
-            break;
-    }
-    e.notification.close();
 });
 ```
 
-`e.action`获取的值，就是我们在`showNotification()`中定义的actions里的action。因此，通过`e.action`就可以知道用户点击了哪一个操作选项。注意，当用户点击提醒本身时，也会触发`notificationclick`，但是不包含任何action值，所以在代码中将其置于default默认操作中。
-
-现在试一下，我们就可以捕获用户对于不同选项的点击了。点击后在Console中会有不同的输出。
-
-![](https://user-gold-cdn.xitu.io/2018/5/1/1631a855e6ac1712?w=1120&h=188&f=png&s=52210)
-
-### 2.4. Service Worker与client通信
-到目前为止，我们已经可以顺利得给用户展示提醒，并且在用户操作提醒后准确捕获到用户的操作。然而，还缺最重要的一步——针对不同的操作，触发不同的交互。例如，
-- 点击提醒本身会弹出书籍简介；
-- 点击“看一看”会给用户展示本书的详情；
-- 点击“联系我”会向应用管理者发邮件等等。
-
-这里有个很重要的地方：我们在Service Worker中捕获用户操作，但是需要在client（这里的client是指前端页面的脚本环境）中触发相应操作（调用页面方法/进行页面跳转…）。因此，这就需要让Service Worker与client进行通信。通信包括下面两个部分：
-
-1. 在Service Worker中使用Worker的`postMessage()`方法来通知client：
+同样的，在Service Worker中也需要相应的数据库连接方法：
 
 ```javascript
 // sw.js
-self.addEventListener('notificationclick', function (e) {
-    …… // 略去上一节内容
+function openStore(storeName) {
+    return new Promise(function (resolve, reject) {
+        var request = indexedDB.open('PWA_DB', 1);
+        request.onerror = function(e) {
+            console.log('连接数据库失败');
+            reject(e);
+        }
+        request.onsuccess = function(e) {
+            console.log('连接数据库成功');
+            resolve(e.target.result);
+        }
+    });
+}
+```
+
+并且在sync事件的回调中，get到indexedDB中对应的数据，最后再向后端发送请求：
+
+```javascript
+// index.js
+self.addEventListener('sync', function (e) {
+    if (e.tag === xxx) {
+        // ……
+    }
+    else if (e.tag === yyy) {
+        // ……
+    }
     
-    e.waitUntil(
-        // 获取所有clients
-        self.clients.matchAll().then(function (clients) {
-            if (!clients || clients.length === 0) {
-                return;
-            }
-            clients.forEach(function (client) {
-                // 使用postMessage进行通信
-                client.postMessage(action);
+    // sample_sync_db同步事件，使用indexedDB来获取需要同步的数据
+    else if (e.tag === 'sample_sync_db') {
+        // 将数据库查询封装为Promise类型的请求
+        var dbQueryPromise = new Promise(function (resolve, reject) {
+            var STORE_NAME = 'SyncData';
+            // 连接indexedDB
+            openStore(e.tag).then(function (db) {
+                try {
+                    // 创建事务进行数据库查询
+                    var tx = db.transaction(STORE_NAME, 'readonly');
+                    var store = tx.objectStore(STORE_NAME);
+                    var dbRequest = store.get(e.tag);
+                    dbRequest.onsuccess = function (e) {
+                        resolve(e.target.result);
+                    };
+                    dbRequest.onerror = function (err) {
+                        reject(err);
+                    };
+                }
+                catch (err) {
+                    reject(err);
+                }
             });
-        })
-    );
-});
-```
+        });
 
-2. 在client中监听`message`事件，判断`data`，进行不同的操作：
-
-```javascript
-// index.js
-navigator.serviceWorker.addEventListener('message', function (e) {
-    var action = e.data;
-    console.log(`receive post-message from sw, action is '${e.data}'`);
-    switch (action) {
-        case 'show-book':
-            location.href = 'https://book.douban.com/subject/20515024/';
-            break;
-        case 'contact-me':
-            location.href = 'mailto:someone@sample.com';
-            break;
-        default:
-            document.querySelector('.panel').classList.add('show');
-            break;
+        e.waitUntil(
+            // 通过数据库查询获取需要同步的数据
+            dbQueryPromise.then(function (data) {
+                console.log(data);
+                var name = data && data.name ? data.name : 'anonymous';
+                var request = new Request(`sync?name=${name}`, init);
+                return fetch(request)
+            }).then(function (response) {
+                response.json().then(console.log.bind(console));
+                return response;
+            })
+        );
     }
 });
 ```
 
-当用户点击提醒后，我们在`notificationclick`监听中，将action通过`postMessage()`通信给client；然后在client中监听`message`事件，基于action（`e.data`）来进行不同的操作（跳转到图书详情页/发送邮件/显示简介面板）。
+相比于postMessage，使用indexedDB的方案要更复杂一点。它比较适用于一些需要数据持久化的场景。
 
-至此，一个比较简单与完整的消息提醒（Notification）功能就完成了。
+![](https://user-gold-cdn.xitu.io/2018/5/14/1635a579ba845ce7?w=800&h=499&f=gif&s=953776)
 
-然而目前的消息提醒还存在一定的局限性。例如，只有在用户访问网站期间才能有机会触发提醒。正如本文一开始所说，Push & Notification的结合将会帮助我们构筑一个强大推送与提醒功能。下面就来看下它们的简单结合。
+## 5. 兼容性
 
-## 3. 消息推送与提醒
-在第五篇[《Web中进行服务端消息推送》](https://juejin.im/post/5accd1355188252b0b201fb9)最后，我们通过监听`push`事件来处理服务端推送：
+依照惯例，我们还是来简单看一下文中相关功能的兼容性。
 
-```javascript
-// sw.js
-self.addEventListener('push', function (e) {
-    var data = e.data;
-    if (e.data) {
-        data = data.json();
-        console.log('push的数据为：', data);
-        self.registration.showNotification(data.text);        
-    } 
-    else {
-        console.log('push没有任何数据');
-    }
-});
-```
+先是[Background Sync](https://caniuse.com/#search=Background%20Sync%20API)：
 
-简单修改以上代码，与我们本文中的提醒功能相结合：
+![](https://user-gold-cdn.xitu.io/2018/5/13/16359f504955c8b8?w=1240&h=592&f=png&s=134469)
 
-```javascript
-// sw.js
-self.addEventListener('push', function (e) {
-    var data = e.data;
-    if (e.data) {
-        data = data.json();
-        console.log('push的数据为：', data);
-        var title = 'PWA即学即用';
-        var options = {
-            body: data,
-            icon: '/img/icons/book-128.png',
-            image: '/img/icons/book-521.png', // no effect
-            actions: [{
-                action: 'show-book',
-                title: '去看看'
-            }, {
-                action: 'contact-me',
-                title: '联系我'
-            }],
-            tag: 'pwa-starter',
-            renotify: true
-        };
-        self.registration.showNotification(title, options);        
-    } 
-    else {
-        console.log('push没有任何数据');
-    }
-});
-```
+令人悲伤的是，基本只有Google自家的Chrome可用。
 
-使用Push来向用户推送信息，并在Service Worker中直接调用Notification API来展示该信息的提醒框。这样，即使是在用户关闭该Web App时，依然可以收到提醒，类似于Native中的消息推送与提醒。
+然后是[indexedDB](https://caniuse.com/#search=indexedDB)：
 
-我们还可以将这个功能再丰富一些。由于用户在关闭该网站时仍然可以收到提醒，因此加入一些更强大功能：
-- 当用户切换到其他Tab时，点击提醒会立刻回到网站的tab；
-- 当用户未打开该网站时，点击提醒可以直接打开网站。
+![](https://user-gold-cdn.xitu.io/2018/5/13/16359f671e79ba6b?w=1240&h=580&f=png&s=155435)
 
-```javascript
-// sw.js
-self.addEventListener('notificationclick', function (e) {
-    var action = e.action;
-    console.log(`action tag: ${e.notification.tag}`, `action: ${action}`);
-    
-    switch (action) {
-        case 'show-book':
-            console.log('show-book');
-            break;
-        case 'contact-me':
-            console.log('contact-me');
-            break;
-        default:
-            console.log(`未处理的action: ${e.action}`);
-            action = 'default';
-            break;
-    }
-    e.notification.close();
+相较于Background Sync还是有着不错的兼容性的。而且在safari（包括iOS safari）中也得到了支持。
 
-    e.waitUntil(
-        // 获取所有clients
-        self.clients.matchAll().then(function (clients) {
-            if (!clients || clients.length === 0) {
-                // 当不存在client时，打开该网站
-                self.clients.openWindow && self.clients.openWindow('http://127.0.0.1:8085');
-                return;
-            }
-            // 切换到该站点的tab
-            clients[0].focus && clients[0].focus();
-            clients.forEach(function (client) {
-                // 使用postMessage进行通信
-                client.postMessage(action);
-            });
-        })
-    );
-});
-```
+## 6. 写在最后
+从文中的内容以及[google developer中的一些实例](https://developers.google.com/web/updates/2015/12/background-sync#the_solution)来看，Background Sync是一个非常有潜力的API。然而令人堪忧的兼容性在一定程度上限制了它的发挥空间。不过，作为一项技术，还是非常值得我们学习与了解的。
 
-注意这两行代码，第一行会在网站关闭时打开该网站，第二行会在存在tab时自动切换到网站的tab。
-
-```javascript
-self.clients.openWindow && self.clients.openWindow('http://127.0.0.1:8085');
-
-clients[0].focus && clients[0].focus();
-```
-
-![](https://user-gold-cdn.xitu.io/2018/5/1/1631b52052cccb59?w=1270&h=676&f=gif&s=2317289)
-
-## 4. MacOS Safari中的Web Notification
-看一下[Web Notification的兼容性](https://caniuse.com/#search=notification)：
-
-![](https://user-gold-cdn.xitu.io/2018/5/1/1631afa349ff2f0c?w=2344&h=918&f=png&s=222023)
-
-目前移动端浏览器普遍还不支持该特性。但是在Mac OS上的safari里面是支持该特性的，不过其调用方式与上文代码有些不太一样。在safari中使用Web Notification不是调用`registration.showNotification()`方法，而是需要创建一个Notification对象。
-
-```javascript
-// index.js
-……
-document.querySelector('#js-notification-btn').addEventListener('click', function () {
-    var title = 'PWA即学即用';
-    var options = {
-        body: '邀请你一起学习',
-        icon: '/img/icons/book-128.png',
-        actions: [{
-            action: 'show-book',
-            title: '去看看'
-        }, {
-            action: 'contact-me',
-            title: '联系我'
-        }],
-        tag: 'pwa-starter',
-        renotify: true
-    };
-    // registration.showNotification(title, options);
-
-    // 使用Notification构造函数创建提醒框
-    // 而非registration.showNotification()方法
-    var notification = new Notification(title, options);
-});
-……
-```
-Notification对象继承自EventTarget接口，因此在safari中需要通过添加click事件的监听来触发提醒框的交互操作：
-
-```javascript
-// index.js
-notification.addEventListener('click', function (e) {
-    document.querySelector('.panel').classList.add('show');
-});
-```
-
-![](https://user-gold-cdn.xitu.io/2018/5/1/1631b1ef1e592c36?w=677&h=369&f=gif&s=308375)
-
-该功能示例可以在[learn-pwa/notify4safari](https://github.com/alienzhou/learning-pwa/tree/notify4safari)中找到。
-
-## 5. 写在最后
-Web Notification是一个非常强大的API，尤其在和Push结合后，为WebApp带来了类似Native的丰富能力。
-
-本文中所有的代码示例均可以在[learn-pwa/notification](https://github.com/alienzhou/learning-pwa/tree/notification)上找到。
+本文中所有的代码示例均可以在[learn-pwa/sync](https://github.com/alienzhou/learning-pwa/tree/sync)上找到。
 
 如果你喜欢或想要了解更多的PWA相关知识，欢迎关注我，关注[《PWA学习与实践》](https://juejin.im/user/59ad5377518825244d206d2d/posts)系列文章。我会总结整理自己学习PWA过程的遇到的疑问与技术点，并通过实际代码和大家一起实践。
 
-到目前为止，我们已经学习了[Manifest](https://juejin.im/post/5ac8a89ef265da238440d60a)、[离线缓存](https://juejin.im/post/5aca14b6f265da237c692e6f)、[消息推送](https://juejin.im/post/5accd1355188252b0b201fb9)、消息提醒、[Debug](https://juejin.im/post/5ae56f926fb9a07aca79edf6)等一些基础知识。在下一篇文章里，我们会继续了解与学习PWA中的一个重要功能——后台同步。
-
-## 《PWA学习与实践》系列
-- [第一篇：2018，开始你的PWA学习之旅](https://juejin.im/post/5ac8a67c5188255c5668b0b8)
-- [第二篇：10分钟学会使用Manifest，让你的WebApp更“Native”](https://juejin.im/post/5ac8a89ef265da238440d60a)
-- [第三篇：从今天起，让你的WebApp离线可用](https://juejin.im/post/5aca14b6f265da237c692e6f)
-- [第四篇：TroubleShooting: 解决FireBase login验证失败问题](https://juejin.im/post/5accc3c9f265da23870f2abc)
-- [第五篇：与你的用户保持联系: Web Push功能](https://juejin.im/post/5accd1355188252b0b201fb9)
-- [第六篇：How to Debug? 在chrome中调试你的PWA](https://juejin.im/post/5ae56f926fb9a07aca79edf6)
-- 第七篇：增强交互：使用Notification API来进行提醒（本文）
-- 第八篇：使用Service Worker进行后台数据同步（写作中……）
+到目前为止，我们已经学习了PWA中的多个知识点，在其基础上，已经可以帮助我们进行原有站点的PWA升级。学习是一方面，实践是另一方面。在下一篇文章里，我会整理一些在业务中升级PWA时碰到的问题，以及对应的解决方案。
 
 ## 参考资料
-- [MDN: notification](https://developer.mozilla.org/zh-CN/docs/Web/API/notification)
-- [MDN: ServiceWorkerRegistration.showNotification()](https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorkerRegistration/showNotification)
-- [MDN: WindowClient](https://developer.mozilla.org/en-US/docs/Web/API/WindowClient)
-- [MDN: Clients](https://developer.mozilla.org/en-US/docs/Web/API/Clients)
-- [WWDC2013](https://developer.apple.com/videos/play/wwdc2013/614/)
+- [Web Background Synchronization](https://wicg.github.io/BackgroundSync/spec/)
+- [MDN: SyncManager](https://developer.mozilla.org/en-US/docs/Web/API/SyncManager)
+- [MDN: SyncManager.register()](https://developer.mozilla.org/en-US/docs/Web/API/SyncManager/register)
+- [MDN: SyncRegistration](https://developer.mozilla.org/en-US/docs/Web/API/SyncRegistration)
+- [Introducing Background Sync](https://developers.google.com/web/updates/2015/12/background-sync)
