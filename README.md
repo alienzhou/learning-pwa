@@ -18,7 +18,7 @@ PWA本身其实是一个概念集合，它不是指某一项技术，而是通�
 - [Service Worker](https://github.com/alienzhou/learning-pwa/tree/sw-cache)
 - [Cache API 缓存](https://github.com/alienzhou/learning-pwa/tree/sw-cache)
 - [Push&Notification 推送与通知](https://github.com/alienzhou/learning-pwa/tree/push)
-- [Background Sync 后台同步](https://github.com/alienzhou/learning-pwa/tree/notification)
+- [Background Sync 后台同步](https://github.com/alienzhou/learning-pwa/tree/sync)
 - 响应式设计
 - ……
 
