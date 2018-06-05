@@ -22,6 +22,10 @@
     <meta name="msapplication-square150x150logo" content="img/icons/book-144.png" />
     <meta name="msapplication-square310x310logo" content="img/icons/book-256.png" />
 
+    <!-- <link rel="prerender" href="//alienzhou.baidu.com:8085/nextpage.html"> -->
+    <!-- <link rel="prefetch" href="//alienzhou.baidu.com:8085/nextpage.html" as="html"> -->
+    <!-- <link rel="prefetch" href="./nextpage.js" as="script"> -->
+
     <title>PWA: 图书搜索</title>
 </head>
 <body>
@@ -52,5 +56,11 @@
     </section>
     <script type="text/javascript" src="./base64util.js"></script>
     <script type="text/javascript" src="./index.js"></script>
+    <script>
+        document.getElementById('js-list').addEventListener('click', function (e) {
+            location.href = '/nextpage.html'
+        }, false);
+    </script>
+    <script type="text/javascript" src="./nextpage.js"></script>
 </body>
 </html>
