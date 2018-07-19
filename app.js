@@ -110,7 +110,14 @@ router.get('/sync', async (ctx, next) => {
 app.use(router.routes());
 app.use(serve(__dirname + '/public', {
     maxage: 1000 * 60 * 60,
-    setHeaders: (res, path, stats) => console.log(`fetch resource ${path}`)
+    setHeaders: (res, path, stats) => {
+        if (/nextpage/.test(path)) {
+            console.log(`\x1B[35m[resource hint] fetch resource ${path}\x1B[39m`);
+        }
+        else {
+            console.log(`fetch resource ${path}`);
+        }
+    }
 }));
 app.listen(port, () => {
     console.log(`listen on port: ${port}`);
