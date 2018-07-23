@@ -22,9 +22,13 @@
     <meta name="msapplication-square150x150logo" content="img/icons/book-144.png" />
     <meta name="msapplication-square310x310logo" content="img/icons/book-256.png" />
 
-    <!-- <link rel="prerender" href="./nextpage.html" as="html"> -->
+    <!-- <link rel="prerender" href="./nextpage.html"> -->
     <!-- <link rel="prefetch" href="./nextpage.html" as="html"> -->
-    <link rel="prefetch" href="./nextpage.js" as="script">
+    <!-- <link rel="prefetch" href="./nextpage.js" as="script"> -->
+
+    <link rel="preload" href="./nextpage.js" as="script">
+    <script type="text/javascript" src="./current.js"></script>
+    <script type="text/javascript" src="./nextpage.js"></script>
 
     <title>PWA: 图书搜索</title>
 </head>

@@ -8,6 +8,12 @@
     </head>
     <body>
         <h1>这是一个详情页</h1>
+        <script>
+            var img = document.createElement('img');
+            document.getElementsByTagName('body')[0].appendChild(img);
+            img.src = '/img/test.png';
+            console.log('next page');
+        </script>
         <script src="./nextpage.js"></script>
     </body>
 </html>

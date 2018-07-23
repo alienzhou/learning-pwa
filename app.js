@@ -117,6 +117,10 @@ app.use(serve(__dirname + '/public', {
         else {
             console.log(`fetch resource ${path}`);
         }
+
+        // if (/index.html/.test(path)) {
+        //     res.setHeader('Link', '</nextpage.js>; rel="prefetch"; as="script"');
+        // }
     }
 }));
 app.listen(port, () => {
